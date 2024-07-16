@@ -2,8 +2,8 @@
 pragma solidity >=0.8.0;
 
 contract rockpaperscissors{
-    uint constant public BET_AMOUNT = 0.01 ether;
-    uint constant public MAX_TIMEOUT = 1 minutes;
+    uint constant public BET_AMOUNT = 0.0001 ether;
+    uint constant public MAX_TIMEOUT = 10 minutes;
 
     enum GameResult {None, Win, Lose, Draw} // for player  
     enum bet {Rock, Paper, Scissors, None}
