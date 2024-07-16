@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0;
 
 contract rockpaperscissors{
-    uint constant public BET_AMOUNT = 0.000001 ether;
+    uint constant public BET_AMOUNT = 0.01 ether;
     uint constant public MAX_TIMEOUT = 1 minutes;
 
     enum GameResult {None, Win, Lose, Draw} // for player  
@@ -65,13 +65,14 @@ contract rockpaperscissors{
         }
     }
 
-    function createGame(bytes32 commit_banker) public {
+    function createGame(bytes32 commit_banker) public returns (uint256) {
         require(balance[msg.sender] >= BET_AMOUNT, "Insufficient balance");
         balance[msg.sender] -= BET_AMOUNT;
         max_game_id += 1;
         games[max_game_id] = Game(msg.sender, address(0), commit_banker, bet.None, bet.None, 0, GameResult.None);
         new_games.push(max_game_id);
         emit NewGame(max_game_id, msg.sender);
+        return max_game_id;
     }
 
     function joinGame(uint256 game_id, bet bet_player) public {
@@ -96,7 +97,7 @@ contract rockpaperscissors{
         require(games[game_id].result == GameResult.None, "Game is already finished");
         require(games[game_id].banker == msg.sender, "Only banker can reveal the result");
         require(block.timestamp - games[game_id].bet_time <= MAX_TIMEOUT, "Timeout");
-        require(games[game_id].commit_banker == calculateCommit(games[game_id].bet_player, secret), "Invalid secret");
+        require(games[game_id].commit_banker == calculateCommit(bet_banker, secret), "Invalid secret");
         games[game_id].bet_banker = bet_banker;
     }
 
@@ -120,10 +121,10 @@ contract rockpaperscissors{
         require(games[game_id].result == GameResult.None, "Game is not finished yet");
         //require(games[game_id].player == msg.sender || games[game_id].banker == msg.sender, "Only player or banker can finish the game");
         GameResult result = GameResult.None;
-        if ((games[game_id].bet_time + MAX_TIMEOUT > block.timestamp) && (games[game_id].bet_banker == bet.None)){
+        if ((games[game_id].bet_time + MAX_TIMEOUT < block.timestamp) && (games[game_id].bet_banker == bet.None)){
             result = GameResult.Win;
         } else {
-            require(games[game_id].bet_time + MAX_TIMEOUT < block.timestamp && games[game_id].bet_banker != bet.None, "Banker did not reveal the result");
+            require(games[game_id].bet_time + MAX_TIMEOUT >= block.timestamp && games[game_id].bet_banker != bet.None, "Banker did not reveal the result");
             result = getGameResult(games[game_id].bet_player, games[game_id].bet_banker);
         }
         require(result != GameResult.None, "Invalid result");
