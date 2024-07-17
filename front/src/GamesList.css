@@ -1,0 +1,22 @@
+.games-list {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  
+  .column {
+    padding: 20px;
+    border-radius: 8px;
+  }
+  
+  .new-games {
+    background-color: lightgreen;
+  }
+  
+  .pending-games {
+    background-color: lightyellow;
+  }
+  
+  .finished-games {
+    background-color: lightcoral;
+  }
