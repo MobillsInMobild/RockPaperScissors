@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { ethers, AbiCoder } from 'ethers';
-import contractABI from './contractABI.json'; // 假设你的ABI文件名为contractABI.json
-import './GamesList.css'; // 引入CSS文件
+import contractABI from './contractABI.json';
+import './GamesList.css';
+import './Game.css';
+import './Fund.css';
 
 const contractAddress = '0x03A7F9171A30787D64188a46E708031778E3E8fE';
 const abi_coder = new AbiCoder();
@@ -11,7 +13,7 @@ var provider;
 var contract;
 var signer;
 
-function ConnectWallet({ onWalletConnect }) {
+function ConnectWallet({ onGameListChange }) {
   const [userAddress, setUserAddress] = useState('');
 
   const connectWalletHandler = async () => {
@@ -26,7 +28,7 @@ function ConnectWallet({ onWalletConnect }) {
         }
         await window.ethereum.request({ method: 'eth_requestAccounts' });
         signer = await provider.getSigner(0);
-        onWalletConnect();
+        onGameListChange();
         setUserAddress(await signer.getAddress());
       } catch (error) {
         console.error('Error connecting to wallet:', error);
@@ -47,7 +49,7 @@ function ConnectWallet({ onWalletConnect }) {
 
 
 
-function GamesList({ walletConnected }) {
+function GamesList({ gameListChanged, resetGameListChanged }) {
   contract = new ethers.Contract(contractAddress, contractABI.abi, signer);
   const [newGames, setNewGames] = useState([]);
   const [pendingGames, setPendingGames] = useState([]);
@@ -77,7 +79,7 @@ function GamesList({ walletConnected }) {
   };
 
   useEffect(() => {
-    if (walletConnected) {
+    if (gameListChanged) {
       Promise.all([
         fetchGames('new'),
         fetchGames('pending'),
@@ -86,9 +88,11 @@ function GamesList({ walletConnected }) {
         setNewGames(newGamesList);
         setPendingGames(pendingGamesList);
         setFinishedGames(finishedGamesList);
+      }).finally(() => {
+        resetGameListChanged();
       });
     };
-  }, [walletConnected]);
+  }, [gameListChanged]);
 
   return (
     <div className="games-list">
@@ -152,30 +156,57 @@ const Fund = () => {
   };
 
   return (
-    <div>
+    <div className='balance-container'>
       <input
+        className="input-amount"
         type="text"
         value={payableAmount}
         onChange={(e) => setPayableAmount(e.target.value)}
         placeholder="Amount"
       />
-      <button onClick={handleDeposit}>Deposit</button>
-      <button onClick={handleWithdraw}>Withdraw</button>
-      <button onClick={handleGetBalance}>Get Balance</button>
-      <span>Balance: {balance}</span>
+      <button className="button button-deposit" onClick={handleDeposit}>Deposit</button>
+      <button className="button button-withdraw" onClick={handleWithdraw}>Withdraw</button>
+      <button className="button button-get-balance" onClick={handleGetBalance}>Get Balance</button>
+      <span className="balance-display">Balance: {balance}</span>
     </div>
   );
 };
 
-function Game(){
+function Game({ onGameListChange }) {
   const [GameId, setGameId] = useState(null);
-  // const [GameState, setGameState] = useState('waiting');
+  const [result, setResult] = useState('null');
   const [bet, setBet] = useState(null);
   const [secret, setSecret] = useState('');
   const [input, setInput] = useState('');
-  
+
+  const handleResult = async () => {
+    try {
+      var game_state = await contract.games(GameId);
+      game_state = game_state.result;
+      game_state = parseInt(game_state);
+      console.log('Game state:', game_state);
+      if (game_state === 0) {
+        setResult('Pending');
+      } else if (game_state === 1) {
+        setResult('Win');
+      } else if (game_state === 2) {
+        setResult('Lose');
+      } else if (game_state === 3) {
+        setResult('Draw');
+      }
+    } catch (error) {
+      console.error('Failed to get game state:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (GameId !== null) {
+      handleResult();
+    }
+  }, [GameId]);
+
   const handleCreateGame = async () => {
-    try {      
+    try {
       const bytes32_secret = abi_coder.encode(['string'], [secret]);
       const commit = contract.calculateCommit(bet, bytes32_secret);
       console.log(commit);
@@ -185,8 +216,9 @@ function Game(){
       const log_data = tx_receipt.logs[0].data;
       var game_id = abi_coder.decode(['uint256', 'address'], log_data)[0];
       game_id = parseInt(game_id);
-      setGameId(game_id);        
-      console.log('Game created');
+      setGameId(game_id);
+      console.log('Game created: ' + game_id);
+      onGameListChange();
     } catch (error) {
       console.error('Failed to create game:', error);
     }
@@ -194,24 +226,50 @@ function Game(){
 
   const handleJoinGame = async () => {
     try {
-      setGameId(10);
-      console.log(input, GameId, bet);
+      setGameId(input);
       if (bet !== null) {
-        const transaction = await contract.joinGame(GameId, bet);
+        const transaction = await contract.joinGame(input, bet);
         const tx_receipt = await transaction.wait();
         console.log(tx_receipt);
         console.log('Game joined');
+        onGameListChange();
       }
-      
+
     } catch (error) {
       console.error('Failed to join game:', error);
     }
   };
 
+  const handleReveal = async () => {
+    try {
+      const bytes32_secret = abi_coder.encode(['string'], [secret]);
+      const transaction = await contract.reveal(bet, bytes32_secret, GameId);
+      const tx_receipt = await transaction.wait();
+      console.log(tx_receipt);
+      console.log('Reveal');
+      onGameListChange();
+    } catch (error) {
+      console.error('Failed to reveal:', error);
+    }
+  };
+
+  const handleFinishGame = async () => {
+    try {
+      const transaction = await contract.finishGame(GameId);
+      const tx_receipt = await transaction.wait();
+      console.log(tx_receipt);
+      console.log('Game finished');
+      onGameListChange();
+      handleResult();
+    } catch (error) {
+      console.error('Failed to finish game:', error);
+    };
+  };
 
   return (
-    <div>
+    <div className='container'>
       <h2> Game ID : {GameId}</h2>
+      <div className="break-line"></div>
       <select onChange={(e) => setBet(parseInt(e.target.value))}>
         <option value={null}>--Please choose an option--</option>
         <option value={1}>Rock</option>
@@ -224,24 +282,40 @@ function Game(){
         placeholder="Secret"
       />
       <button onClick={handleCreateGame}>Create Game</button>
-      <br />
+      <div className="break-line"></div>
       <select onChange={(e) => setBet(parseInt(e.target.value))}>
         <option value={null}>--No Bet And just Join--</option>
         <option value={1}>Rock</option>
         <option value={2}>Paper</option>
         <option value={3}>Scissors</option>
       </select>
-
       <input
         type="text"
         onChange={(e) => setInput(parseInt(e.target.value))}
         placeholder="Game Id"
       />
       <button onClick={handleJoinGame}>Join Game</button>
+      <div className="break-line"></div>
+      <select onChange={(e) => setBet(parseInt(e.target.value))}>
+        <option value={null}>--Please choose an option--</option>
+        <option value={1}>Rock</option>
+        <option value={2}>Paper</option>
+        <option value={3}>Scissors</option>
+      </select>
+      <input
+        type="text"
+        onChange={(e) => setSecret(e.target.value)}
+        placeholder="Secret"
+      />
+      <button onClick={handleReveal}>Reveal</button>
+      <div className="break-line"></div>
+      <button onClick={handleFinishGame}>Finish Game</button>
+      <h3>Game Result: {result}</h3>
+      <div className="break-line"></div>
     </div>
   );
 };
 
 
 
-export { ConnectWallet, GamesList, Fund, Game};
+export { ConnectWallet, GamesList, Fund, Game };
