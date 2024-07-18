@@ -2,6 +2,13 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 20px;
+    border-radius: 8px; 
+    margin-bottom: 20px; 
+    height: 90%;
+    width: 80%; 
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+    padding: 20px;
+    background-color: #d2f3ff; 
   }
   
   .column {
